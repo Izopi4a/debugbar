@@ -67,10 +67,14 @@ func Fiber(o Options) fiber.Handler {
 }
 
 // watchAjax goes first in <head>, before the page's scripts: it notes the
-// X-Debugbar header of every AJAX response, for bar.js (loaded at the end).
+// X-Debugbar header of every AJAX response of this app, for bar.js (loaded
+// at the end). Only same-origin responses are looked at: reading a header
+// of another site's response (a widget's API, a CDN) makes the browser log
+// `Refused to get unsafe header "X-Debugbar"`.
 const watchAjax = `<script>(function(){var q=window.__debugbarAjax=[];function seen(id){if(id){q.push(id);if(window.__debugbarOnAjax)window.__debugbarOnAjax(id)}}` +
-	`var send=XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.send=function(){this.addEventListener("loadend",function(){seen(this.getResponseHeader("X-Debugbar"))});return send.apply(this,arguments)};` +
-	`var f=window.fetch;if(f){window.__debugbarFetch=f;window.fetch=function(){return f.apply(this,arguments).then(function(r){seen(r.headers.get("X-Debugbar"));return r})}}})();</script>`
+	`function ours(u){return u===""||u.indexOf(location.origin+"/")===0||u.indexOf("/")===0&&u.indexOf("//")!==0}` +
+	`var send=XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.send=function(){this.addEventListener("loadend",function(){if(this.responseURL&&ours(this.responseURL))seen(this.getResponseHeader("X-Debugbar"))});return send.apply(this,arguments)};` +
+	`var f=window.fetch;if(f){window.__debugbarFetch=f;window.fetch=function(){return f.apply(this,arguments).then(function(r){if(r.url&&ours(r.url))seen(r.headers.get("X-Debugbar"));return r})}}})();</script>`
 
 // inject puts the AJAX watcher after the page's <head> and the bar before
 // its </body>.
